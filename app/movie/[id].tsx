@@ -1,6 +1,6 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, Image, StyleSheet, ActivityIndicator, ScrollView, FlatList, Pressable } from 'react-native';
 import { api } from '../../src/api/tmdb';
 
 interface MovieDetails {
@@ -11,28 +11,76 @@ interface MovieDetails {
   runtime: number;
 }
 
+interface MovieCreditsActor {
+  name: string;
+  id: number;
+  profile_path: string | null;
+}
+
 export default function MovieDetailsScreen() {
   // Captura o parâmetro '[id]' do nome do arquivo
   const { id } = useLocalSearchParams();
   const [movie, setMovie] = useState<MovieDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchMovieDetails = async () => {
+  const [credits, setCredits] = useState<MovieCreditsActor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingCredits, setIsLoadingCredits] = useState(true);
+
+
+  const fetchMovieDetails = async () => {
+    try {
+      const response = await api.get(`/movie/${id}`);
+      setMovie(response.data);      
+      setIsLoading(false)
+    } catch (error) {
+      console.error('Erro ao buscar detalhes:', error);
+    }
+  };
+
+  const fetchCredits = async () => {
       try {
-        const response = await api.get(`/movie/${id}`);
-        setMovie(response.data);
+        const response = await api.get(`/movie/${id}/credits`);
+        console.log('Resposta dos créditos:', response.data.cast);
+        setCredits(response.data.cast);
+        setIsLoadingCredits(false);
       } catch (error) {
         console.error('Erro ao buscar detalhes:', error);
-      } finally {
-        setIsLoading(false);
       }
-    };
+  };
 
+    const rendercreditsItem = ({ item }: { item: MovieCreditsActor }) => (
+      // Link do Expo Router passando o ID do filme como parâmetro dinâmico
+      <Link href={`../actor/${item.id}`} asChild>
+        <Pressable style={styles.card}>
+          {item.profile_path ? (
+            <Image
+              source={{ uri: `https://image.tmdb.org/t/p/w500${item.profile_path}` }}
+              style={styles.poster}
+            />
+          ) : (
+            <View>
+              <Text>Sem Imagem</Text>
+            </View>
+          )}
+        </Pressable>
+      </Link>
+    );
+  
+
+  useEffect(() => {
     fetchMovieDetails();
+    fetchCredits();
   }, [id]); // O hook é re-executado caso o ID mude
 
   if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#E50914" />
+      </View>
+    );
+  }
+
+  if (isLoadingCredits) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#E50914" />
@@ -48,6 +96,13 @@ export default function MovieDetailsScreen() {
     );
   }
 
+  if (!credits) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Créditos não encontrados.</Text>
+      </View>
+    );
+  }
   return (
     <ScrollView style={styles.container}>
       {movie.poster_path && (
@@ -61,7 +116,7 @@ export default function MovieDetailsScreen() {
         <Text style={styles.title}>{movie.title}</Text>
 
         <View style={styles.statsContainer}>
-          <Text style={styles.statText}>⭐ {movie.vote_average.toFixed(1)}/10</Text>
+          <Text style={styles.statText}>⭐ {movie.vote_average}/10</Text>
           <Text style={styles.statText}>⏱️ {movie.runtime} min</Text>
         </View>
 
@@ -70,6 +125,17 @@ export default function MovieDetailsScreen() {
           {movie.overview || 'Sinopse não disponível para este filme.'}
         </Text>
       </View>
+      <View style={styles.content}>
+        <FlatList
+                  data={credits}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={rendercreditsItem}
+                  contentContainerStyle={styles.listContainer}
+                  // horizontal={true}
+                  
+                />
+      </View>
+
     </ScrollView>
   );
 }
@@ -85,4 +151,12 @@ const styles = StyleSheet.create({
   sectionTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
   overview: { color: '#D1D5DB', fontSize: 16, lineHeight: 24 },
   errorText: { color: '#FFFFFF', fontSize: 18 },
+  card: {
+    flexDirection: 'row',
+    backgroundColor: '#1F1F1F',
+    borderRadius: 8,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  listContainer: { padding: 50 },
 });

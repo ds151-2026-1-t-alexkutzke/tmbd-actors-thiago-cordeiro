@@ -74,6 +74,7 @@ export default function HomeScreen() {
   );
 
   return (
+    <>
     <View style={styles.container}>
       <View style={styles.searchContainer}>
         <TextInput
@@ -100,6 +101,7 @@ export default function HomeScreen() {
         />
       )}
     </View>
+    </>
   );
 }
 
